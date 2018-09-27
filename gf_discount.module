@@ -8,7 +8,11 @@
  * Implements hook_uc_cart_alter().
  */
 function gf_discount_uc_cart_alter(&$items) {
-  if (user_has_role(18) or user_has_role(19)) { $extra_10 = true; }
+  $EXTRA_10_MANAGER_ID = 19;
+  $EXTRA_10_USER_ID = 18;
+  $discount_coefficient = 1;
+
+  if (user_has_role($EXTRA_10_MANAGER_ID) or user_has_role($EXTRA_10_USER_ID)) { $extra_10 = true; }
 
   foreach ($items as $key => $item) {
 
@@ -23,18 +27,18 @@ function gf_discount_uc_cart_alter(&$items) {
       $discount = TRUE;
     }
 
-
+    $result_price = $item->price * $discount_coefficient;
     if ($discount) {
       if ($extra_10) {
         $discount_percent += 10;
       }
-      $discount_coefficient = 1.0 - $discount_percent / 100;
-      $item->price = $item->price * $discount_coefficient;
-      $item->sell_price = $item->price * $discount_coefficient;
+      $discount_coefficient = 1.0 - ($discount_percent / 100);
+      $item->price = $result_price;
+      $item->sell_price = $result_price;
     } elseif ($extra_10) {
-      $discount_coefficient = 1.0 - 10 / 100;
-      $item->price = $item->price * $discount_coefficient;
-      $item->sell_price = $item->price * $discount_coefficient;
+      $discount_coefficient = 0.9;
+      $item->price = $result_price;
+      $item->sell_price = $result_price;
     }
   }
 }
