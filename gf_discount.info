@@ -2,3 +2,6 @@ name = GF Discount
 description = A module for change price in cart according to discount policy.
 package = Giorgio Ferretti
 core = 7.x
+
+dependencies[] = uc_cart
+dependencies[] = uc_order
