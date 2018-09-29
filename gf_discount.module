@@ -31,8 +31,12 @@ function gf_discount_menu() {
  */
 function gf_discount_uc_cart_alter(&$items) {
   // Получаем скидку(в процентах) для "новичка".
-  // ... пока никак не используем
-  $newbie_discount = gf_discount_get_newbie_discount($items);
+  if ($newbie_discount = gf_discount_get_newbie_discount($items)) {
+    // Если таковая есть, радуем пользователя сообщением, как ему повезло.
+    $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
+    ['!percent' => $newbie_discount]);
+    drupal_set_message($msg);
+  }
 
   $extra_10 = FALSE;
   if (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
@@ -40,6 +44,13 @@ function gf_discount_uc_cart_alter(&$items) {
     $extra_10 = TRUE; 
   }
   foreach ($items as $key => $item) {
+    $current_price = $item->price;
+    if ($newbie_discount) {
+      // Применяем новичковую скидку(если положено) к цене товара.
+      $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $newbie_discount);
+    }
+
+    // Start Ilya art
     $discount = FALSE;
 
     if (isset($item->field_discount['und'])) {
@@ -62,6 +73,7 @@ function gf_discount_uc_cart_alter(&$items) {
       $discount_coefficient = 1.0 - 10 / 100;
       $item->price = $item->sell_price = $item->price * $discount_coefficient;
     }
+    // End Ilya art
   }
 }
 
