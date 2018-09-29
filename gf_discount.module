@@ -7,6 +7,26 @@
 define('GF_USER_ROLE_MANAGER_GARDENER_ID', 18);
 define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
 
+
+/**
+ * Implements hook_menu().
+ */
+function gf_discount_menu() {
+  $items = [];
+  // Страница настроек модуля.
+  $items['admin/config/gf-discount'] = [
+    'title' => 'GF-Discount ',
+    'description' => 'Gf-Discount module settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['gf_discount_settings_form'],
+    'access arguments' => ['access administration pages'],
+    'file' => 'gf_discount.admin.inc',
+  ];
+  return $items;
+}
+
+
+
 /**
  * Implements hook_uc_cart_alter().
  */
