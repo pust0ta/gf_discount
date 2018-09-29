@@ -26,11 +26,14 @@ function gf_discount_menu() {
 }
 
 
-
 /**
  * Implements hook_uc_cart_alter().
  */
 function gf_discount_uc_cart_alter(&$items) {
+  // Получаем скидку(в процентах) для "новичка".
+  // ... пока никак не используем
+  $newbie_discount = gf_discount_get_newbie_discount($items);
+
   $extra_10 = FALSE;
   if (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
     or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) { 
@@ -79,4 +82,48 @@ function gf_discount_check_newbie($uid=NULL) {
     [':uid' => $uid])->fetchField();
 
   return !$result;
+}
+
+
+/**
+ * Получаем общую сумму заказа.
+ *
+ * @param array $cart_items
+ * @return int
+ */
+function gf_discount_get_cart_total_sum($cart_items) {
+  $sum = 0;
+  foreach($cart_items as $item) {
+    $sum += $item->qty * $item->price;
+  }
+  return $sum;
+}
+
+
+/**
+ * Получаем дисконт для новочела.
+ *
+ * @param array $cart_items
+ *   массив с элементами корзины
+ * @param int $uid
+ * @return int
+ *   вовращаем процент скидки, или ноль, если не положено
+ */
+function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
+  $discount = 0;
+  $is_newbie = gf_discount_check_newbie($uid);
+
+  if (!$is_newbie) 
+    return $discount;
+
+  $cart_total = gf_discount_get_cart_total_sum($cart_items) / 1000;
+  $newbie_discounts = variable_get('gf_discount_newbie_discounts', []);
+  krsort($newbie_discounts); // сортируем по нисходящей
+  foreach(array_keys($newbie_discounts) as $sum) {
+    if ($cart_total >= $sum) {
+      $discount = $newbie_discounts[$sum];
+      break;
+    }
+  }
+  return $discount;
 }
