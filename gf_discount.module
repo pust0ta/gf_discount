@@ -44,20 +44,24 @@ function gf_discount_uc_cart_alter(&$items) {
     $extra_10 = TRUE; 
   }
   foreach ($items as $key => $item) {
+    $discount = FALSE;
+    $discount_percent = 0;
+
     $current_price = $item->price;
     if ($newbie_discount) {
-      // Применяем новичковую скидку(если положено) к цене товара.
-      $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $newbie_discount);
+      // // Применяем новичковую скидку(если положено) к цене товара.
+      // $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $newbie_discount);
+      $discount = TRUE;
+      $discount_percent += $newbie_discount;
     }
 
-    // Start Ilya art
-    $discount = FALSE;
 
+    // Start Ilya art
     if (isset($item->field_discount['und'])) {
       $field_discount_tid = $item->field_discount['und'][0]['tid'];
       $discount_term = taxonomy_term_load($field_discount_tid);
       $discount_raw_percent = $discount_term->name;
-      $discount_percent = substr($discount_raw_percent, 0, strpos($discount_raw_percent, '%'));
+      $discount_percent += substr($discount_raw_percent, 0, strpos($discount_raw_percent, '%'));
       $discount = TRUE;
     }
 
