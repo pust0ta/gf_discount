@@ -30,54 +30,38 @@ function gf_discount_menu() {
  * Implements hook_uc_cart_alter().
  */
 function gf_discount_uc_cart_alter(&$items) {
+  $cart_total = gf_discount_get_cart_total_sum($items);
   // Получаем скидку(в процентах) для "новичка".
-  if ($newbie_discount = gf_discount_get_newbie_discount($items)) {
+  $newbie_discount = gf_discount_get_newbie_discount($items);
+  if ($newbie_discount && !isset($_SESSION['gf_discount_newbie_msg_shown'])) {
     // Если таковая есть, радуем пользователя сообщением, как ему повезло.
     $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
     ['!percent' => $newbie_discount]);
     drupal_set_message($msg);
+    $_SESSION['gf_discount_newbie_msg_shown'] = TRUE;
   }
 
-  $extra_10 = FALSE;
-  if (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
-    or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) { 
-    $extra_10 = TRUE; 
-  }
+  // Десятипроцентная скидка для пользователей определенных блатных ролей.
+  $extra_10 = (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
+    or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID));
+
   foreach ($items as $key => $item) {
-    $discount = FALSE;
-    $discount_percent = 0;
+    $discount_percent = $extra_10 ? 10 : 0; // процент блатным
 
-    $current_price = $item->price;
     if ($newbie_discount) {
-      // // Применяем новичковую скидку(если положено) к цене товара.
-      // $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $newbie_discount);
-      $discount = TRUE;
-      $discount_percent += $newbie_discount;
+      $discount_percent += $newbie_discount; // процент новичкам
     }
 
-
-    // Start Ilya art
     if (isset($item->field_discount['und'])) {
-      $field_discount_tid = $item->field_discount['und'][0]['tid'];
-      $discount_term = taxonomy_term_load($field_discount_tid);
-      $discount_raw_percent = $discount_term->name;
-      $discount_percent += substr($discount_raw_percent, 0, strpos($discount_raw_percent, '%'));
-      $discount = TRUE;
+      $tid = $item->field_discount['und'][0]['tid'];
+      $discount_term = taxonomy_term_load($tid);
+      $discount_percent += (int) $discount_term->name; // процент за акционный товар
     }
 
-    if ($discount) {
-      if ($extra_10) {
-        $discount_percent += 10;
-      }
-
-      $discount_coefficient = 1.0 - $discount_percent / 100;
-      $item->price = $item->sell_price = $item->price * $discount_coefficient;
-    } 
-    elseif ($extra_10) {
-      $discount_coefficient = 1.0 - 10 / 100;
-      $item->price = $item->sell_price = $item->price * $discount_coefficient;
+    if ($discount_percent) {
+      $current_price = $item->price;
+      $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $discount_percent);
     }
-    // End Ilya art
   }
 }
 
@@ -129,8 +113,8 @@ function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
   $discount = 0;
   $is_newbie = gf_discount_check_newbie($uid);
 
-  if (!$is_newbie) 
-    return $discount;
+  // if (!$is_newbie) 
+  //   return $discount;
 
   $cart_total = gf_discount_get_cart_total_sum($cart_items) / 1000;
   $newbie_discounts = variable_get('gf_discount_newbie_discounts', []);
