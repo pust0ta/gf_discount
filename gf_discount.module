@@ -22,6 +22,20 @@ function gf_discount_menu() {
     'access arguments' => ['access administration pages'],
     'file' => 'gf_discount.admin.inc',
   ];
+  $items['admin/config/gf-discount/newbie'] = array(
+    'title' => 'Newbie Discount',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -1,
+  );
+  $items['admin/config/gf-discount/roles'] = [
+    'title' => 'Discount for roles',
+    'description' => 'Setting up discounts for custom roles',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['gf_discount_roles_settings_form'],
+    'access arguments' => ['access administration pages'],
+    'file' => 'gf_discount.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  ];
   return $items;
 }
 

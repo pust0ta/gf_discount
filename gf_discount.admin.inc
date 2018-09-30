@@ -7,7 +7,7 @@
  * @see gf_discount_menu()
  */
 
-function gf_discount_settings_form($form, &$form_state){
+function gf_discount_settings_form(){
   $form = [];
   $defaults = [ // сумма в тыс. руб. => скидка(в процентах)
     50 => 5, 
@@ -87,4 +87,61 @@ function gf_discount_percent_validate($element, $form_state) {
   if ($element['#value'] > 100) {
     form_error($element, t('The value must be less than or equal to 100.'));
   }
+}
+
+
+/**
+ * Форма для настройки скидок для нужных ролей.
+ *
+ */
+function gf_discount_roles_settings_form() {
+  $form = [];
+  $settings = variable_get('gf_discount_role_discounts', []);
+
+  $form['discount_by_role'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Discount by role'),
+    '#description' => t('Setting up discounts for custom roles')
+  ];
+
+  $roles = user_roles(TRUE);
+  ksort($roles);
+  foreach($roles as $rid => $role) {
+    $form['discount_by_role']['role_' . $rid] = [
+        '#type' => 'textfield',
+        '#title' => $role . ' (' . $rid . ')',
+        '#description' => t('Set the discount in percent.'),
+        '#default_value' => isset($settings[$rid]) ? $settings[$rid] : 0,
+        '#element_validate' => array(
+          'element_validate_integer', 
+          'gf_discount_percent_validate'
+        ), 
+        '#maxlength' => 3,
+        '#width' => 4,
+    ];
+  }
+
+  $form['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  ];
+
+  return $form;
+}
+
+
+/**
+ * Сохранение настроек по скидкам для ролей.
+ *
+ */
+function gf_discount_roles_settings_form_submit($form, &$form_state) {
+  $discounts = [];
+  foreach($form_state['values'] as $key => $val) {
+    if (substr($key, 0, 5) === 'role_' && $val > 0) {
+      $role_id = (int) str_replace('role_', '', $key);
+      $discounts[$role_id] = $val;
+    }
+  }
+
+  variable_set('gf_discount_role_discounts', $discounts);
 }
