@@ -5,3 +5,4 @@ core = 7.x
 
 dependencies[] = uc_cart
 dependencies[] = uc_order
+dependencies[] = gf_stock

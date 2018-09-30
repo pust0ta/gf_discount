@@ -131,13 +131,12 @@ function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
  * @return int
  */
 function gf_discount_get_discounts() {
+  $discount = 0;
   // Получаем скидку(в процентах) для "новичка".
-  $newbie_discount = gf_discount_get_newbie_discount($items);
+  $discount += gf_discount_get_newbie_discount($items);
   // Десятипроцентная скидка для пользователей определенных блатных ролей.
-  $extra_10 = (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
+  $discount += (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
     or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
-  // Высчитываем бызовый процент скидки.
-  $discount = $newbie_discount + $extra_10;
 
   return $discount;
 }
