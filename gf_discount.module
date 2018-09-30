@@ -19,7 +19,7 @@ function gf_discount_menu() {
     'description' => 'Gf-Discount module settings',
     'page callback' => 'drupal_get_form',
     'page arguments' => ['gf_discount_settings_form'],
-    'access arguments' => ['access administration pages'],
+    'access arguments' => ['administer discounts'],
     'file' => 'gf_discount.admin.inc',
   ];
   $items['admin/config/gf-discount/newbie'] = array(
@@ -32,19 +32,31 @@ function gf_discount_menu() {
     'description' => 'Setting up discounts for custom roles',
     'page callback' => 'drupal_get_form',
     'page arguments' => ['gf_discount_roles_settings_form'],
-    'access arguments' => ['access administration pages'],
+    'access arguments' => ['administer discounts'],
     'file' => 'gf_discount.admin.inc',
     'type' => MENU_LOCAL_TASK,
   ];
   return $items;
 }
 
+/**
+ * Implements hook_permission().
+ */
+function gf_discount_permission() {
+  // Разрешение управлять скидками.
+  return array(
+    'administer discounts' => array(
+      'title' => t('Administer discounts'),
+      'description' => t('Allows configuration of discounts'),
+    ),
+  );
+}
 
 /**
  * Implements hook_uc_cart_alter().
  */
 function gf_discount_uc_cart_alter(&$items) {
-  $base_discount = gf_discount_get_discounts();
+  $base_discount = gf_discount_get_discount_all();
 
   foreach ($items as $key => $item) {
     $item_discount = $base_discount;
@@ -109,7 +121,7 @@ function gf_discount_get_cart_total_sum_rub($cart_items) {
  * @return int
  *   вовращаем процент скидки, или ноль, если не положено
  */
-function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
+function gf_discount_get_discount_newbie($cart_items, $uid=NULL) {
   $discount = 0;
   $is_newbie = gf_discount_check_newbie($uid);
 
@@ -144,13 +156,38 @@ function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
  *
  * @return int
  */
-function gf_discount_get_discounts() {
+function gf_discount_get_discount_all() {
   $discount = 0;
   // Получаем скидку(в процентах) для "новичка".
-  $discount += gf_discount_get_newbie_discount($items);
+  $discount += gf_discount_get_discount_newbie($items);
   // Десятипроцентная скидка для пользователей определенных блатных ролей.
   $discount += (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
     or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
+  // Получаем скидку для ролей.
+  $discount += gf_discount_get_discount_role();
 
   return $discount;
+}
+
+
+function gf_discount_get_discount_role($roles=NULL) {
+  if (is_null($roles)) {
+    global $user;
+    $roles = $user->roles;
+  }
+
+  $role_discounts = variable_get('gf_discount_role_discounts', []);
+
+  if ($roles && $role_discounts) {
+    $slice = array_intersect_key($role_discounts, $roles);
+    $summarize = variable_get('gf_discount_summarize_discounts', FALSE);
+    if ($summarize){
+      return array_sum($slice);
+    }
+    else {
+      return max($slice);
+    }
+  }
+
+  return 0;
 }

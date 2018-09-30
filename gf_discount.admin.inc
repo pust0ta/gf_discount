@@ -98,6 +98,13 @@ function gf_discount_roles_settings_form() {
   $form = [];
   $settings = variable_get('gf_discount_role_discounts', []);
 
+  $form['summarize_discounts'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Summarize discounts'),
+    '#description' => t('Summarize discounts if the user has several roles to which different discounts apply. If the check box is not checked, the maximum discount will be selected.'),
+    '#default_value' => variable_get('gf_discount_summarize_discounts', FALSE),
+  ];
+
   $form['discount_by_role'] = [
     '#type' => 'fieldset',
     '#title' => t('Discount by role'),
@@ -137,7 +144,10 @@ function gf_discount_roles_settings_form() {
 function gf_discount_roles_settings_form_submit($form, &$form_state) {
   $discounts = [];
   foreach($form_state['values'] as $key => $val) {
-    if (substr($key, 0, 5) === 'role_' && $val > 0) {
+    if ($key == 'summarize_discounts') {
+      variable_set('gf_discount_summarize_discounts', $val);
+    }
+    elseif (substr($key, 0, 5) === 'role_' && $val > 0) {
       $role_id = (int) str_replace('role_', '', $key);
       $discounts[$role_id] = $val;
     }
