@@ -30,37 +30,21 @@ function gf_discount_menu() {
  * Implements hook_uc_cart_alter().
  */
 function gf_discount_uc_cart_alter(&$items) {
-  $cart_total = gf_discount_get_cart_total_sum_rub($items);
-  // Получаем скидку(в процентах) для "новичка".
-  $newbie_discount = gf_discount_get_newbie_discount($items);
-  if ($newbie_discount && !isset($_SESSION['gf_discount_newbie_msg_shown'])) {
-    // Если таковая есть, радуем пользователя сообщением, как ему повезло.
-    $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
-    ['!percent' => $newbie_discount]);
-    drupal_set_message($msg);
-    $_SESSION['gf_discount_newbie_msg_shown'] = TRUE;
-  }
-
-  // Десятипроцентная скидка для пользователей определенных блатных ролей.
-  $extra_10 = (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
-    or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID));
+  $base_discount = gf_discount_get_discounts();
 
   foreach ($items as $key => $item) {
-    $discount_percent = $extra_10 ? 10 : 0; // процент блатным
-
-    if ($newbie_discount) {
-      $discount_percent += $newbie_discount; // процент новичкам
-    }
+    $item_discount = $base_discount;
 
     if (isset($item->field_discount['und'])) {
       $tid = $item->field_discount['und'][0]['tid'];
       $discount_term = taxonomy_term_load($tid);
-      $discount_percent += (int) $discount_term->name; // процент за акционный товар
+      $item_discount += (int) $discount_term->name; // процент за акционный товар
     }
 
-    if ($discount_percent) {
+    if ($item_discount) {
       $current_price = $item->price;
-      $items[$key]->price = $items[$key]->sell_price = $current_price - (($current_price / 100) * $discount_percent);
+      $items[$key]->price = $items[$key]->sell_price = $current_price - (
+        ($current_price / 100) * $item_discount);
     }
   }
 }
@@ -115,17 +99,45 @@ function gf_discount_get_newbie_discount($cart_items, $uid=NULL) {
   $discount = 0;
   $is_newbie = gf_discount_check_newbie($uid);
 
-  // if (!$is_newbie) 
-  //   return $discount;
+  if (!$is_newbie) 
+    return $discount;
 
   $cart_total = gf_discount_get_cart_total_sum_rub($cart_items) / 1000;
   $newbie_discounts = variable_get('gf_discount_newbie_discounts', []);
   krsort($newbie_discounts); // сортируем по нисходящей
+
   foreach(array_keys($newbie_discounts) as $sum) {
     if ($cart_total >= $sum) {
       $discount = $newbie_discounts[$sum];
       break;
     }
   }
+
+  if ($discount && !isset($_SESSION['gf_discount_newbie_msg_shown'])) {
+    // Если скидка есть, радуем пользователя сообщением, как ему повезло.
+    $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
+    ['!percent' => $newbie_discount]);
+    drupal_set_message($msg);
+    $_SESSION['gf_discount_newbie_msg_shown'] = TRUE;
+  }
+
+  return $discount;
+}
+
+
+/**
+ * Собираем все скидки одной функцией.
+ *
+ * @return int
+ */
+function gf_discount_get_discounts() {
+  // Получаем скидку(в процентах) для "новичка".
+  $newbie_discount = gf_discount_get_newbie_discount($items);
+  // Десятипроцентная скидка для пользователей определенных блатных ролей.
+  $extra_10 = (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
+    or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
+  // Высчитываем бызовый процент скидки.
+  $discount = $newbie_discount + $extra_10;
+
   return $discount;
 }
