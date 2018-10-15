@@ -142,7 +142,7 @@ function gf_discount_get_discount_newbie($cart_items, $uid=NULL) {
   if ($discount && !isset($_SESSION['gf_discount_newbie_msg_shown'])) {
     // Если скидка есть, радуем пользователя сообщением, как ему повезло.
     $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
-    ['!percent' => $newbie_discount]);
+    ['!percent' => $discount]);
     drupal_set_message($msg);
     $_SESSION['gf_discount_newbie_msg_shown'] = TRUE;
   }
