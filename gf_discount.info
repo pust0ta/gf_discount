@@ -3,6 +3,8 @@ description = A module for change price in cart according to discount policy.
 package = Giorgio Ferretti
 core = 7.x
 
+configure = admin/config/gf-discount
+
 dependencies[] = uc_cart
 dependencies[] = uc_order
 dependencies[] = gf_stock

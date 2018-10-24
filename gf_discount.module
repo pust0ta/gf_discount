@@ -40,6 +40,15 @@ function gf_discount_menu() {
     'file' => 'gf_discount.admin.inc',
     'type' => MENU_LOCAL_TASK,
   ];
+  $items['admin/config/gf-discount/last-month-sum'] = [
+    'title' => 'Previous Month Based',
+    'description' => 'Discounts based on the amount spent by a customer in the previous month.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => ['gf_discount_previous_month_based_settings_form'],
+    'access arguments' => ['administer discounts'],
+    'file' => 'gf_discount.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  ];
   return $items;
 }
 

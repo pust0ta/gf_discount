@@ -155,3 +155,45 @@ function gf_discount_roles_settings_form_submit($form, &$form_state) {
 
   variable_set('gf_discount_role_discounts', $discounts);
 }
+
+
+/**
+ * Настройка скидок на основе суммы по заказам за прошлый месяц.
+ *
+ */
+function gf_discount_previous_month_based_settings_form($form, &$form_state){
+  $settings = variable_get('gf_discount_prev_month_based_discounts', '');
+  if (is_array($settings)) {
+    $settings = implode("\n", array_map(
+      function ($v, $k) {
+        return sprintf("%s|%s", $k, $v);
+      }, $settings, array_keys($settings)
+    ));
+  }
+  $form['min_max_proc'] = [
+    '#type' => 'textarea',
+    '#title' => t('Required amount (in thousands of rubles)'),
+    '#description' => t('The minimum order amount required to receive a discount.'),
+    '#default_value' => $settings,
+    '#required' => true,
+    // '#element_validate' => array('element_validate_integer_positive'), 
+  ];
+  $form['submit'] = [
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  ];
+  return $form;
+}
+
+function gf_discount_previous_month_based_settings_form_submit($form, &$form_state) {
+  $values = $form_state['values'];
+  $levels = explode("\n", $values['min_max_proc']);
+  $settings = [];
+
+  foreach($levels as $level) {
+    list($sum, $percent) = explode('|', $level);
+    $settings[$sum] = $percent;
+  }
+
+  variable_set('gf_discount_prev_month_based_discounts', $settings);
+}
