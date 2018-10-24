@@ -7,6 +7,10 @@
 define('GF_USER_ROLE_MANAGER_GARDENER_ID', 18);
 define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
 
+// Название полей с валютой в таблице uc_orders.
+define('GF_UC_ORDERS_CURRENCY_RUB', 'RUB');
+define('GF_UC_ORDERS_CURRENCY_CNY', 'CNY');
+
 
 /**
  * Implements hook_menu().
@@ -190,4 +194,45 @@ function gf_discount_get_discount_role($roles=NULL) {
   }
 
   return 0;
+}
+
+/**
+ * Получаем сумму, на которую пользователь назаказывал в прошлом месяце. 
+ * Без привязки к конкретной валюте, но по-умолчанию завязываемся на рубли.
+ * 
+ * @param int $uid
+ * @param string $output_currency
+ * @return int
+ */
+function gf_discount_get_customer_last_month_sum($uid, $output_currency=GF_UC_ORDERS_CURRENCY_RUB){
+  $sum = 0;
+  $q = db_select('uc_orders', 'o')->fields('o', ['currency']);
+  $q->addExpression('SUM(order_total)', 'sum');
+  // $q->addExpression('MONTH(FROM_UNIXTIME(o.created))', 'month');
+  $q->condition('o.uid', $uid);
+  $q->where('MONTH(FROM_UNIXTIME(o.created)) = (MONTH(NOW()) - 1)'); 
+  $q->groupBy('o.currency');
+
+  $result = $q->execute()->fetchAll();
+
+  if ($result) {
+    // Исходим из того, что у пользователя могли быть заказы
+    // в различных валютах.
+    foreach($result as $data) {
+      if ($data->currency == $output_currency) {
+        $sum += $data->sum;
+      }
+      elseif (in_array($data->currency, 
+        [GF_UC_ORDERS_CURRENCY_RUB, GF_UC_ORDERS_CURRENCY_CNY])) {
+        // Убеждаемся, что нам не пришла какая-то левая строка, и
+        // преобразуем сумму в нужную валюту. Модулем gf_stock у нас текущий курс
+        // юаня к рублю сохраняется в соответствующей переменной.
+        $yuan_erate = variable_get('gf_stock_yuan_exchange_rate');
+        $sum += ($data->currency == GF_UC_ORDERS_CURRENCY_CNY) ? 
+          ($data->sum * $yuan_erate) : ($data->sum / $yuan_erate);
+      }
+    }
+  }
+
+  return $sum;
 }
