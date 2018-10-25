@@ -161,39 +161,137 @@ function gf_discount_roles_settings_form_submit($form, &$form_state) {
  * Настройка скидок на основе суммы по заказам за прошлый месяц.
  *
  */
-function gf_discount_previous_month_based_settings_form($form, &$form_state){
-  $settings = variable_get('gf_discount_prev_month_based_discounts', '');
-  if (is_array($settings)) {
-    $settings = implode("\n", array_map(
-      function ($v, $k) {
-        return sprintf("%s|%s", $k, $v);
-      }, $settings, array_keys($settings)
-    ));
+function gf_discount_montly_settings_form($form, &$form_state){
+  $form['#tree'] = TRUE;
+  $form['sum_fieldset'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Assigning a role depending on the amount spent in the past month.'),
+    '#prefix' => '<div id="sum-fieldset-wrapper">',
+    '#suffix' => '</div>',
+  );
+
+  $settings = variable_get('gf_discount_montly_sum_roles_discount', []);
+
+  if (empty($form_state['num_options'])) {
+    $form_state['num_options'] = count($settings) ?: 1;
   }
-  $form['min_max_proc'] = [
-    '#type' => 'textarea',
-    '#title' => t('Required amount (in thousands of rubles)'),
-    '#description' => t('The minimum order amount required to receive a discount.'),
-    '#default_value' => $settings,
-    '#required' => true,
-    // '#element_validate' => array('element_validate_integer_positive'), 
-  ];
-  $form['submit'] = [
+
+  for ($i = 0; $i < $form_state['num_options']; $i++) {
+    // Парсим сохраненные настройки для получения 
+    // дефолтных занчений для полей.
+    $settings_values = array_values($settings);
+    $settings_keys = array_keys($settings);
+    list($min, $max) = isset($settings_keys[$i]) ? explode(':', $settings_keys[$i]) : [];
+    $role_id = $settings_values[$i] ?? '';
+
+    $form['sum_fieldset'][$i] = array(
+      '#type' => 'fieldset',
+    );
+    $form['sum_fieldset'][$i]['min'] = array(
+      '#type' => 'textfield',
+      '#title' => t('MIN Sum'),
+      '#description' => t('Minimum sum of the range'),
+      '#element_validate' => array('element_validate_integer_positive'), 
+      '#default_value' => $min,
+    );
+    $form['sum_fieldset'][$i]['max'] = array(
+      '#type' => 'textfield',
+      '#title' => t('MAX Sum'),
+      '#description' => t('Maximum sum of the range'),
+      '#element_validate' => array('element_validate_integer_positive'), 
+      '#default_value' => $max,
+    );
+    $form['sum_fieldset'][$i]['role_id'] = array(
+      '#type' => 'select',
+      '#title' => t('Assignable role'),
+      '#options' => user_roles(TRUE),
+      '#description' => t('The role must be assigned when it enters the range.'),
+      '#default_value' => $role_id,
+    );
+  }
+
+  $form['add_more'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add one more'),
+    '#validate' => [],
+    '#submit' => array(
+      'gf_discount_montly_ajax_add_one',
+    ),
+    '#ajax' => array(
+      'callback' => 'gf_discount_montly_add_more_ajax',
+      'wrapper' => 'sum-fieldset-wrapper',
+    ),
+  );
+
+  $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
-  ];
+  );
+
   return $form;
 }
 
-function gf_discount_previous_month_based_settings_form_submit($form, &$form_state) {
-  $values = $form_state['values'];
-  $levels = explode("\n", $values['min_max_proc']);
+/**
+ * Implements hook_form_submit()
+ *
+ */
+function gf_discount_montly_settings_form_submit($form, &$form_state) {
   $settings = [];
-
-  foreach($levels as $level) {
-    list($sum, $percent) = explode('|', $level);
-    $settings[$sum] = $percent;
+  $values = $form_state['values']['sum_fieldset'];
+  foreach ($values as $num => $val) {
+    if (!$val['min'] || !$val['max']) continue;
+    // Ключ - строка, составленная из мин. и макс. сумм, разделенных
+    // двоеточием.
+    // Значение = ID роли.
+    $key = sprintf('%s:%s', $val['min'], $val['max']);
+    $settings[$key] = $val['role_id'];
   }
 
-  variable_set('gf_discount_prev_month_based_discounts', $settings);
+  variable_set('gf_discount_montly_sum_roles_discount', $settings);
 }
+
+/**
+ * Implements hook_form_validate()
+ *
+ */
+function gf_discount_montly_settings_form_validate($form, &$form_state) {
+  $values = $form_state['values']['sum_fieldset'];
+  $role_ids = [];
+
+  foreach ($values as $num => $val) {
+    // Незаполненные сеты не учитываем.
+    if (!$val['min'] || !$val['max']) continue;
+
+    // Проверка на то, что заданная минимальная сумма реально 
+    // меньше заданной максимальной.
+    if ((int) $val['min'] >=  (int) $val['max']) {
+      form_set_error('sum_fieldset][' . $num, t('The max amount must be greater than the min.'));
+    }
+    // Проверяем, что одна и та же роль не была указана дважды.
+    if (in_array($val['role_id'], $role_ids)) {
+      form_set_error('sum_fieldset][' . $num . '][role_id', t('The role assigned twice.'));
+    }
+    else {
+      $role_ids[] = $val['role_id'];
+    }
+  }
+}
+
+/**
+ * Возвращаем аяксом обновленный формсет.
+ *
+ */
+function gf_discount_montly_add_more_ajax($form, &$form_state){
+  return $form['sum_fieldset'];
+}
+
+/**
+ * Добавление сета с диапазоном.
+ *
+ */
+function gf_discount_montly_ajax_add_one($form, &$form_state) {
+  // Увеличиваем счетчик опций.
+  $form_state['num_options']++;
+  $form_state['rebuild'] = TRUE;
+}
+
