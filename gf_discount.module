@@ -215,10 +215,13 @@ function gf_discount_get_discount_role($roles=NULL) {
  */
 function gf_discount_get_customer_last_month_sum($uid, $output_currency=GF_UC_ORDERS_CURRENCY_RUB){
   $sum = 0;
+  $excluded_statuses = ['abandoned', 'canceled', 'in_checkout'];
+
   $q = db_select('uc_orders', 'o')->fields('o', ['currency']);
   $q->addExpression('SUM(order_total)', 'sum');
   // $q->addExpression('MONTH(FROM_UNIXTIME(o.created))', 'month');
   $q->condition('o.uid', $uid);
+  $q->condition('o.order_status', $excluded_statuses, 'NOT IN');
   $q->where('MONTH(FROM_UNIXTIME(o.created)) = (MONTH(NOW()) - 1)'); 
   $q->groupBy('o.currency');
 
@@ -244,4 +247,67 @@ function gf_discount_get_customer_last_month_sum($uid, $output_currency=GF_UC_OR
   }
 
   return $sum;
+}
+
+
+/**
+ * Implements hook_cron().
+ *
+ */
+function gf_discount_cron(){
+  // Ежемесячные мероприятия, инициируемые модулем.
+  $current_month = date('m', REQUEST_TIME);
+  $last_run = variable_get('gf_discount_monthly_events_lastrun', $current_month);
+  // Сравниваем значение текущего месяца со значением
+  // переменной, где записан месяц последнего запуска нужных нам процессов.
+  if($last_run == ($current_month - 1)){
+    gf_discount_assigning_roles();
+    // Пишем в переменную-индикатор последнего запуска значение текущего месяца.
+    variable_set('gf_discount_monthly_events_lastrun', $current_month);
+  }
+}
+
+
+/**
+ * gf_discount_assigning_roles
+ *
+ * Назначение временных дисконтных ролей
+ * по результатам предыдущего месяца.
+ *
+ * @return void
+ */
+function gf_discount_assigning_roles() {
+  $settings = variable_get('gf_discount_montly_sum_roles_discount', []);
+  if (!$settings) return;
+  ksort($settings); // Крупные суммы - выше.
+  $roles_store = []; // Закрепляем пользователей за ролями.
+
+  $q = db_select('users', 'u')
+    ->fields('u', ['uid'])
+    ->condition('status', 1)
+    ->condition('uid', 1, '>')
+    ->execute();
+
+  while ($result = $q->fetchAssoc()) {
+    $sum = gf_discount_get_customer_last_month_sum($result['uid']);
+    if ($sum <= 0) continue;
+    foreach($settings as $key_sum => $role_id) {
+      list($min, $max) = explode(':', $key_sum); // $key_sum == 'min_num:max_num'
+      if (($sum >= $min) && ($sum <= $max)) {
+        $roles_store[$role_id][] = $result['uid'];
+        break;
+      }
+
+    }
+  }
+
+  if ($roles_store) {
+    // По результатам наполнения массива с ролями
+    // и соответствующими им пол-ми присваимваем пол-лям дисконтные роли.
+    foreach($roles_store as $role => $users) {
+      user_multiple_role_edit($users, 'add_role', $role);
+    }
+  }
+
+  return;
 }

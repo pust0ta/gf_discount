@@ -203,7 +203,7 @@ function gf_discount_montly_settings_form($form, &$form_state){
     );
     $form['sum_fieldset'][$i]['role_id'] = array(
       '#type' => 'select',
-      '#title' => t('Assignable role'),
+      '#title' => t('Role'),
       '#options' => user_roles(TRUE),
       '#description' => t('The role must be assigned when it enters the range.'),
       '#default_value' => $role_id,
