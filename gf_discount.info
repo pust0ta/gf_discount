@@ -8,3 +8,4 @@ configure = admin/config/gf-discount
 dependencies[] = uc_cart
 dependencies[] = uc_order
 dependencies[] = gf_stock
+dependencies[] = role_expire

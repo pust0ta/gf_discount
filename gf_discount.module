@@ -143,7 +143,7 @@ function gf_discount_get_discount_newbie($cart_items, $uid=NULL) {
 
   $cart_total = gf_discount_get_cart_total_sum_rub($cart_items) / 1000;
   $newbie_discounts = variable_get('gf_discount_newbie_discounts', []);
-  krsort($newbie_discounts); // сортируем по нисходящей
+  krsort($newbie_discounts, SORT_NUMERIC); // сортируем по нисходящей
 
   foreach(array_keys($newbie_discounts) as $sum) {
     if ($cart_total >= $sum) {
@@ -269,8 +269,6 @@ function gf_discount_cron(){
 
 
 /**
- * gf_discount_assigning_roles
- *
  * Назначение временных дисконтных ролей
  * по результатам предыдущего месяца.
  *
@@ -279,7 +277,7 @@ function gf_discount_cron(){
 function gf_discount_assigning_roles() {
   $settings = variable_get('gf_discount_montly_sum_roles_discount', []);
   if (!$settings) return;
-  ksort($settings); // Крупные суммы - выше.
+  krsort($settings, SORT_NUMERIC); // Крупные суммы - выше.
   $roles_store = []; // Закрепляем пользователей за ролями.
 
   $q = db_select('users', 'u')
@@ -288,13 +286,20 @@ function gf_discount_assigning_roles() {
     ->condition('uid', 1, '>')
     ->execute();
 
+  $expiry_timestamp = strtotime(variable_get('gf_discount_roles_expire', '1 month'));
+
   while ($result = $q->fetchAssoc()) {
-    $sum = gf_discount_get_customer_last_month_sum($result['uid']);
+    $uid = $result['uid'];
+    $sum = gf_discount_get_customer_last_month_sum($uid);
+
     if ($sum <= 0) continue;
     foreach($settings as $key_sum => $role_id) {
       list($min, $max) = explode(':', $key_sum); // $key_sum == 'min_num:max_num'
       if (($sum >= $min) && ($sum <= $max)) {
-        $roles_store[$role_id][] = $result['uid'];
+        $roles_store[$role_id][] = $uid;
+        // Делаем запись в таблицу модуля role_expire, что бы роль у
+        // пользователя была отозвана по истечении настроенного времени.
+        role_expire_write_record($uid, $role_id, $expiry_timestamp);
         break;
       }
 

@@ -163,6 +163,18 @@ function gf_discount_roles_settings_form_submit($form, &$form_state) {
  */
 function gf_discount_montly_settings_form($form, &$form_state){
   $form['#tree'] = TRUE;
+  $form['roles_expire'] = array(
+    '#title' => t('Roles expire'),
+    '#type' => 'textfield',
+    '#size' => 10,
+    '#default_value' => variable_get('gf_discount_roles_expire', '1 month'),
+    '#maxlength' => 32,
+    '#required' => true,
+    '#attributes' => array('class' => array('role-expire-role-expiry')),
+    '#description' => t('Enter the time span you want to set as the default duration for a roles. Examples: 12 hours, 1 day, 3 days, 4 weeks, 3 months, 1 year. This value may be any !l-compatible relative form.',
+      array('!l' => l('strtotime', 'http://php.net/manual/en/function.strtotime.php'))
+    )
+  );
   $form['sum_fieldset'] = array(
     '#type' => 'fieldset',
     '#title' => t('Assigning a role depending on the amount spent in the past month.'),
@@ -247,6 +259,7 @@ function gf_discount_montly_settings_form_submit($form, &$form_state) {
     $settings[$key] = $val['role_id'];
   }
 
+  ksort($settings, SORT_NUMERIC);
   variable_set('gf_discount_montly_sum_roles_discount', $settings);
 }
 
@@ -257,6 +270,15 @@ function gf_discount_montly_settings_form_submit($form, &$form_state) {
 function gf_discount_montly_settings_form_validate($form, &$form_state) {
   $values = $form_state['values']['sum_fieldset'];
   $role_ids = [];
+
+  $roles_expire = $form_state['values']['roles_expire'];
+  if(strtotime($roles_expire)) {
+    variable_set('gf_discount_roles_expire', $roles_expire);
+  }
+  else {
+    form_set_error('roles_expire', t('Incorrect expiration date for roles. See !l', 
+      array('!l' => l('examples', 'http://php.net/manual/en/function.strtotime.php#refsect1-function.strtotime-examples'))));
+  }
 
   foreach ($values as $num => $val) {
     // Незаполненные сеты не учитываем.
