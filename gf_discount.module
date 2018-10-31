@@ -56,11 +56,18 @@ function gf_discount_menu() {
  * Implements hook_permission().
  */
 function gf_discount_permission() {
-  // Разрешение управлять скидками.
   return array(
     'administer discounts' => array(
       'title' => t('Administer discounts'),
-      'description' => t('Allows configuration of discounts'),
+      'description' => t('Allows configuration of discounts.'),
+    ),
+    'use newbie discounts' => array(
+      'title' => t('Use newbie discounts'),
+      'description' => t('Use discounts for newbie'),
+    ),
+    'use role discounts' => array(
+      'title' => t('Use role discounts'),
+      'description' => t('Use discounts for a roles'),
     ),
   );
 }
@@ -134,9 +141,15 @@ function gf_discount_get_cart_total_sum_rub($cart_items) {
  * @return int
  *   вовращаем процент скидки, или ноль, если не положено
  */
-function gf_discount_get_discount_newbie($cart_items, $uid=NULL) {
+function gf_discount_get_discount_newbie($cart_items, $user=NULL) {
+  if (is_null($user)) {
+    global $user;
+  }
+  // На получение скидки у пользователя должно быть разрешение.
+  if (!user_access('use newbie discounts', $user)) return 0;
+
   $discount = 0;
-  $is_newbie = gf_discount_check_newbie($uid);
+  $is_newbie = gf_discount_check_newbie($user->uid);
 
   if (!$is_newbie) 
     return $discount;
@@ -183,6 +196,12 @@ function gf_discount_get_discount_all($items) {
 }
 
 
+/**
+ * Получение скидки для роли.
+ *
+ * @param array $roles
+ * @return int
+ */
 function gf_discount_get_discount_role($roles=NULL) {
   if (is_null($roles)) {
     global $user;
@@ -193,10 +212,12 @@ function gf_discount_get_discount_role($roles=NULL) {
 
   if ($roles && $role_discounts) {
     $slice = array_intersect_key($role_discounts, $roles);
+    // Суммируем скидки для ролей, если есть такое указание 
+    // в настройках.
     $summarize = variable_get('gf_discount_summarize_discounts', FALSE);
     if ($summarize){
       return array_sum($slice);
-    }
+    } // иначе - возвращаем самую большую скидку.
     else {
       return max($slice);
     }
@@ -280,16 +301,20 @@ function gf_discount_assigning_roles() {
   krsort($settings, SORT_NUMERIC); // Крупные суммы - выше.
   $roles_store = []; // Закрепляем пользователей за ролями.
 
-  $q = db_select('users', 'u')
-    ->fields('u', ['uid'])
-    ->condition('status', 1)
-    ->condition('uid', 1, '>')
-    ->execute();
+  $query = db_query("SELECT DISTINCT r.uid FROM users_roles r
+    JOIN role_permission p ON r.rid = p.rid
+    WHERE r.uid > 1
+    AND p.module = :module
+    AND p.permission = :perms", [
+      ':module' => 'gf_discount', 
+      ':perms' => 'use role discounts']);
+
+
 
   $expiry_timestamp = strtotime(variable_get('gf_discount_roles_expire', '1 month'));
 
-  while ($result = $q->fetchAssoc()) {
-    $uid = $result['uid'];
+  foreach ($query->fetchAll() as $result) {
+    $uid = $result->uid;
     $sum = gf_discount_get_customer_last_month_sum($uid);
 
     if ($sum <= 0) continue;
