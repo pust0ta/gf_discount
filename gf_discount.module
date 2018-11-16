@@ -10,6 +10,9 @@ define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
 // Название полей с валютой в таблице uc_orders.
 define('GF_UC_ORDERS_CURRENCY_RUB', 'RUB');
 define('GF_UC_ORDERS_CURRENCY_CNY', 'CNY');
+// Статусы неучитываемых, при подсчете скидок, заказов(в таблице uc_orders).
+// Указываем через двоеточие.
+define('GF_UC_ORDERS_EXCLUDED_STATUSES', 'abandoned:canceled:in_checkout');
 
 
 /**
@@ -108,8 +111,12 @@ function gf_discount_check_newbie($uid=NULL) {
   }
 
   if ($uid < 2) return; // Юзер 1 нам тоже не интересен.
-  $result = db_query('SELECT 1 FROM {uc_orders} WHERE uid = :uid',
-    [':uid' => $uid])->fetchField();
+
+  $excluded_statuses = explode(':', GF_UC_ORDERS_EXCLUDED_STATUSES);
+  $result = db_query('SELECT 1 FROM {uc_orders} 
+    WHERE uid = :uid
+    AND order_status NOT IN (:excluded_statuses)',
+    [':uid' => $uid, ':excluded_statuses' => $excluded_statuses])->fetchField();
 
   return !$result;
 }
@@ -236,7 +243,7 @@ function gf_discount_get_discount_role($roles=NULL) {
  */
 function gf_discount_get_customer_last_month_sum($uid, $output_currency=GF_UC_ORDERS_CURRENCY_RUB){
   $sum = 0;
-  $excluded_statuses = ['abandoned', 'canceled', 'in_checkout'];
+  $excluded_statuses = explode(':', GF_UC_ORDERS_EXCLUDED_STATUSES);
 
   $q = db_select('uc_orders', 'o')->fields('o', ['currency']);
   $q->addExpression('SUM(order_total)', 'sum');
