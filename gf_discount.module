@@ -4,8 +4,8 @@
 * A description of what your module does.
 */
 
-define('GF_USER_ROLE_MANAGER_GARDENER_ID', 18);
-define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
+// define('GF_USER_ROLE_MANAGER_GARDENER_ID', 18);
+// define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
 
 // Название полей с валютой в таблице uc_orders.
 define('GF_UC_ORDERS_CURRENCY_RUB', 'RUB');
@@ -194,8 +194,8 @@ function gf_discount_get_discount_all($items) {
   // Получаем скидку(в процентах) для "новичка".
   $discount += gf_discount_get_discount_newbie($items);
   // Десятипроцентная скидка для пользователей определенных блатных ролей.
-  $discount += (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
-    or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
+  // $discount += (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
+  //   or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
   // Получаем скидку для ролей.
   $discount += gf_discount_get_discount_role();
 
