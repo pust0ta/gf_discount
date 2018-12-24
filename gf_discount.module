@@ -1,12 +1,14 @@
 <?php
 /**
-* @file
-* A description of what your module does.
-*/
+ * @file
+ * A description of what your module does.
+ */
 
-// define('GF_USER_ROLE_MANAGER_GARDENER_ID', 18);
-// define('GF_USER_ROLE_WHOLESALE_CUSTOMER_ID', 19);
-
+// Роли, имеющие индивидуальную скидку.
+define('GF_INDIVIDUAL_DIDSCOUT_ROLES_IDS', [
+  18, // Роль Садовод.
+  19, // Роль Оптово-Розничный Клиент.
+]);
 // Название полей с валютой в таблице uc_orders.
 define('GF_UC_ORDERS_CURRENCY_RUB', 'RUB');
 define('GF_UC_ORDERS_CURRENCY_CNY', 'CNY');
@@ -114,11 +116,11 @@ function gf_discount_check_newbie($uid=NULL) {
 
   $excluded_statuses = explode(':', GF_UC_ORDERS_EXCLUDED_STATUSES);
   $result = db_query('SELECT 1 FROM {uc_orders} 
-    WHERE uid = :uid
-    AND order_status NOT IN (:excluded_statuses)',
-    [':uid' => $uid, ':excluded_statuses' => $excluded_statuses])->fetchField();
+  WHERE uid = :uid
+  AND order_status NOT IN (:excluded_statuses)',
+[':uid' => $uid, ':excluded_statuses' => $excluded_statuses])->fetchField();
 
-  return !$result;
+return !$result;
 }
 
 
@@ -175,7 +177,7 @@ function gf_discount_get_discount_newbie($cart_items, $user=NULL) {
   if ($discount && !isset($_SESSION['gf_discount_newbie_msg_shown'])) {
     // Если скидка есть, радуем пользователя сообщением, как ему повезло.
     $msg = t('You received a promotional discount of !percent % on all products in your shopping cart',
-    ['!percent' => $discount]);
+      ['!percent' => $discount]);
     drupal_set_message($msg);
     $_SESSION['gf_discount_newbie_msg_shown'] = TRUE;
   }
@@ -190,21 +192,117 @@ function gf_discount_get_discount_newbie($cart_items, $user=NULL) {
  * @return int
  */
 function gf_discount_get_discount_all($items) {
+  global $user;
+  $messages = [];
+
   $discount = 0;
   // Получаем скидку(в процентах) для "новичка".
-  $discount += gf_discount_get_discount_newbie($items);
-  // Десятипроцентная скидка для пользователей определенных блатных ролей.
-  // $discount += (user_has_role(GF_USER_ROLE_MANAGER_GARDENER_ID) 
-  //   or user_has_role(GF_USER_ROLE_WHOLESALE_CUSTOMER_ID)) ? 10 : 0;
-  // Получаем скидку для ролей.
-  $discount += gf_discount_get_discount_role();
+  if($newbie_discount = gf_discount_get_discount_newbie($items)) {
+    $discount += $newbie_discount;
+    $messages[] = t('Your welcome discount is %discount percent.', 
+      ['%discount' => $newbie_discount]);
+  }
+  // Получаем накопительную скидку(в процентах).
+  if($acc_discount = gf_discount_get_accum_distcount($user)) {
+    $discount += $acc_discount;
+    $messages[] = t('Your cumulative discount is %discount percent.', 
+      ['%discount' => $acc_discount]);
+  }
+  // Получаем индивидуальную скидку.
+  if($ind_discout = gf_discount_get_individual_distcount($user)) {
+    $discount += $ind_discout;
+    $messages[] = t('Your individual discount is %discount percent.', 
+      ['%discount' => $ind_discout]);
+  }
+  // Кладем сообщения о скидках в сессию для последующего использования
+  // в презентационных целях.
+  $_SESSION['gf_discount_messages'] = $messages;
 
   return $discount;
 }
 
 
 /**
+ * Вычисляем накопительную скидку для пользователя.
+ *
+ * @param stdClass $user
+ * @return int
+ */
+function gf_discount_get_accum_distcount(stdClass $user) {
+  // Карта скидок для ролей.
+  $discounts = variable_get('gf_discount_role_discounts', []);
+
+  // Роли, назначаемые под накопительную скидку.
+  $accum_roles = array_flip(
+    variable_get('gf_discount_montly_sum_roles_discount', []));
+  // Пользовательские роли, имеющие накопительную скидку.
+  // Таковая, конечно, должна быть одна. В идеале. В реале технически вероятна
+  // ситуация, когда этих ролей у пользователя может быть несколько.
+  $discount_roles = array_keys(array_intersect_key($user->roles, $accum_roles));
+
+  if($discount_roles) {
+    // Обрабатываем ситуацию, когда у пользователя имеется несколько
+    // ролей, попадающих под накопительную скидку. Будем выбирать из них ту, у
+    // которой срок истечения заканчивается позже остальных.
+    if (count($discount_roles) > 1) {
+      $query = db_select('role_expire', 'e')
+        ->fields('e', ['rid'])
+        ->condition('e.uid', $user->uid)
+        ->condition('e.rid', $discount_roles, 'IN')
+        ->orderBy('e.expiry_timestamp', 'DESC');
+
+      if($role_id = $query->execute()->fetchField()) {
+        return (int) $discounts[$role_id];
+      }
+    }
+    else {
+      return (int) $discounts[$discount_roles[0]];
+    }
+  }
+
+  return 0;
+}
+
+/**
+ * Получаем индивидуальную скидку пользователя.
+ *
+ * @param stdClass $user
+ * @return int
+ */
+function gf_discount_get_individual_distcount(stdClass $user) {
+  // Карта скидок для ролей.
+  $discounts = variable_get('gf_discount_role_discounts', []);
+
+  $user_discount = [];
+
+  // Проверяем поль-ля на наличие у него ролей с индивидуальными 
+  // скидками. Если такие есть - собираем в отдельный массив.
+  foreach(GF_INDIVIDUAL_DIDSCOUT_ROLES_IDS as $rid) {
+    if (user_has_role($rid, $user) && isset($discounts[$rid])) {
+      $user_discount[$rid] = $discounts[$rid];
+    }
+  }
+
+  if ($user_discount) {
+    // Суммируем скидки для ролей, если есть такое указание 
+    // в настройках.
+    $summarize = variable_get('gf_discount_summarize_discounts', FALSE);
+    if ($summarize){
+      return array_sum($user_discount);
+    } // иначе - возвращаем самую большую скидку.
+    else {
+      return max($user_discount);
+    }
+  }
+
+  return 0;
+}
+
+/**
  * Получение скидки для роли.
+ * Данный функционал в этом модуле более не используется.
+ * Функция оставлена на правах legacy-кода, на случай ее использования(Ильей)
+ * где-то в коде других модулей.
  *
  * @param array $roles
  * @return int
@@ -340,11 +438,25 @@ function gf_discount_assigning_roles() {
 
   if ($roles_store) {
     // По результатам наполнения массива с ролями
-    // и соответствующими им пол-ми присваимваем пол-лям дисконтные роли.
+    // и соответствующими им пол-ми присваиваем пол-лям дисконтные роли.
     foreach($roles_store as $role => $users) {
       user_multiple_role_edit($users, 'add_role', $role);
     }
   }
 
   return;
+}
+
+function gf_discount_uc_cart_pane_alter(&$panes, $items) {
+  // $panes['cart_form']['body'] = drupal_get_form('my_custom_pane_form_builder', $items);
+}
+
+/**
+ * Implements of hook_form_alter()
+ */
+function gf_discount_form_uc_cart_view_form_alter(&$form, &$form_state) {
+      if (isset($_SESSION['gf_discount_messages'])) {
+        $form['items']['#suffix'] = '<ul class="discount-messages"><li>' . 
+          implode('</li><li>', $_SESSION['gf_discount_messages']) . '</li></ul>';
+      }
 }

@@ -2,6 +2,7 @@ name = GF Discount
 description = A module for change price in cart according to discount policy.
 package = Giorgio Ferretti
 core = 7.x
+php = 7.0
 
 configure = admin/config/gf-discount
 
