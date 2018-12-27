@@ -447,8 +447,14 @@ function gf_discount_assigning_roles() {
   return;
 }
 
+/**
+ * Implements hook_uc_cart_pane_alter().
+ */
 function gf_discount_uc_cart_pane_alter(&$panes, $items) {
   if (isset($_SESSION['gf_discount_messages'])) {
+    // Если в глобальном массиве сессии пользователя 
+    // лежат сообщения по скидкам - тогда правим форму корзины для их
+    // отображения.
     $total_price_index = count(uc_cart_get_contents());
     $total_price_value = $panes['cart_form']['body']['items'][$total_price_index]['total']['#prefix'];
     $panes['cart_form']['body']['items'][$total_price_index]['total']['#prefix'] = '<ul class="discount-messages"><li>' . 
@@ -456,13 +462,3 @@ function gf_discount_uc_cart_pane_alter(&$panes, $items) {
       $total_price_value;
   }
 }
-
-/**
- * Implements of hook_form_alter()
- */
-// function gf_discount_form_uc_cart_view_form_alter(&$form, &$form_state) {
-//       if (isset($_SESSION['gf_discount_messages'])) {
-//         $form['items']['#suffix'] = '<ul class="discount-messages"><li>' . 
-//           implode('</li><li>', $_SESSION['gf_discount_messages']) . '</li></ul>';
-//       }
-// }
