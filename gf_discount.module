@@ -4,11 +4,6 @@
  * A description of what your module does.
  */
 
-// Роли, имеющие индивидуальную скидку.
-define('GF_INDIVIDUAL_DIDSCOUT_ROLES_IDS', [
-  18, // Роль Садовод.
-  19, // Роль Оптово-Розничный Клиент.
-]);
 // Название полей с валютой в таблице uc_orders.
 define('GF_UC_ORDERS_CURRENCY_RUB', 'RUB');
 define('GF_UC_ORDERS_CURRENCY_CNY', 'CNY');
@@ -208,8 +203,9 @@ function gf_discount_get_discount_all($items) {
     $messages[] = t('Your cumulative discount is %discount percent.', 
       ['%discount' => $acc_discount]);
   }
-  // Получаем индивидуальную скидку.
-  if($ind_discout = gf_discount_get_individual_distcount($user)) {
+  // Получаем индивидуальную скидку (скидку на основе ролей за вычетом ролей
+  // накопительной скидки).
+  if($ind_discout = gf_discount_get_role_discount($user)) {
     $discount += $ind_discout;
     $messages[] = t('Your individual discount is %discount percent.', 
       ['%discount' => $ind_discout]);
@@ -264,56 +260,27 @@ function gf_discount_get_accum_distcount(stdClass $user) {
 }
 
 /**
- * Получаем индивидуальную скидку пользователя.
+ * Подсчет скидок на основе пользовательских ролей.
  *
  * @param stdClass $user
+ * @param bool $without_accumulative
+ *   Флаг, выключающий, при подсчете скидок на основе ролей,
+ *   те роли, что входят указаны в настройках модуля как роли для 
+ *   вычисления накопительных скидок.
  * @return int
  */
-function gf_discount_get_individual_distcount(stdClass $user) {
-  // Карта скидок для ролей.
-  $discounts = variable_get('gf_discount_role_discounts', []);
+function gf_discount_get_role_discount(stdClass $user, $without_accumulative=TRUE) {
 
-  $user_discount = [];
-
-  // Проверяем поль-ля на наличие у него ролей с индивидуальными 
-  // скидками. Если такие есть - собираем в отдельный массив.
-  foreach(GF_INDIVIDUAL_DIDSCOUT_ROLES_IDS as $rid) {
-    if (user_has_role($rid, $user) && isset($discounts[$rid])) {
-      $user_discount[$rid] = $discounts[$rid];
-    }
-  }
-
-  if ($user_discount) {
-    // Суммируем скидки для ролей, если есть такое указание 
-    // в настройках.
-    $summarize = variable_get('gf_discount_summarize_discounts', FALSE);
-    if ($summarize){
-      return array_sum($user_discount);
-    } // иначе - возвращаем самую большую скидку.
-    else {
-      return max($user_discount);
-    }
-  }
-
-  return 0;
-}
-
-/**
- * Получение скидки для роли.
- * Данный функционал в этом модуле более не используется.
- * Функция оставлена на правах legacy-кода, на случай ее использования(Ильей)
- * где-то в коде других модулей.
- *
- * @param array $roles
- * @return int
- */
-function gf_discount_get_discount_role($roles=NULL) {
-  if (is_null($roles)) {
-    global $user;
-    $roles = $user->roles;
-  }
-
+  // Все ролевые скидки.
   $role_discounts = variable_get('gf_discount_role_discounts', []);
+
+  if ($without_accumulative) {
+    // Если стоит флаг - без накопительных, то убираем накопительные роли.
+    $accum_roles = array_flip(variable_get('gf_discount_montly_sum_roles_discount', [])); 
+    $role_discounts = array_diff_key($role_discounts, $accum_roles);
+  }
+
+  $roles = $user->roles;
 
   if ($roles && $role_discounts) {
     $slice = array_intersect_key($role_discounts, $roles);
